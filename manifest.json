@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "STREAK",
+  "short_name": "STREAK",
+  "version": "0.3.1",
+  "description": "Capture visible multiplier results and analyze historical streaks, patterns, and empirical probability bands.",
+  "icons": {
+    "16": "assets/icons/icon-16.png",
+    "32": "assets/icons/icon-32.png",
+    "48": "assets/icons/icon-48.png",
+    "128": "assets/icons/icon-128.png"
+  },
+  "permissions": ["activeTab", "scripting", "storage", "notifications"],
+  "host_permissions": [
+    "https://pepeta.com/*",
+    "https://*.pepeta.com/*",
+    "https://*.spribegaming.com/*",
+    "https://script.google.com/*",
+    "https://script.googleusercontent.com/*"
+  ],
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://pepeta.com/*",
+        "https://*.pepeta.com/*",
+        "https://*.spribegaming.com/*"
+      ],
+      "js": ["src/content.js"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "STREAK",
+    "default_icon": {
+      "16": "assets/icons/icon-16.png",
+      "32": "assets/icons/icon-32.png",
+      "48": "assets/icons/icon-48.png",
+      "128": "assets/icons/icon-128.png"
+    }
+  },
+  "minimum_chrome_version": "110"
+}

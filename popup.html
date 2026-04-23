@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>STREAK</title>
+    <link rel="stylesheet" href="styles/popup.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand-title">
+          <img class="brand-icon" src="assets/icons/icon-48.png" alt="" />
+          <div>
+            <h1>STREAK</h1>
+            <p id="tabLabel">Current tab</p>
+          </div>
+        </div>
+        <span id="statusPill" class="pill">Idle</span>
+      </header>
+
+      <section class="panel">
+        <label class="field">
+          <span>Result selector</span>
+          <input id="selectorInput" type="text" placeholder=".payouts .payout, .history-item" />
+        </label>
+
+        <label class="field">
+          <span>Multiplier regex</span>
+          <input id="regexInput" type="text" spellcheck="false" />
+        </label>
+
+        <div class="grid two">
+          <label class="field">
+            <span>DOM order</span>
+            <select id="orderInput">
+              <option value="newest-first">Newest first</option>
+              <option value="oldest-first">Oldest first</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Max records</span>
+            <input id="maxRecordsInput" type="number" min="100" max="100000" step="100" />
+          </label>
+        </div>
+
+        <div class="grid two">
+          <label class="field">
+            <span>Min value</span>
+            <input id="minValueInput" type="number" min="0" step="0.01" />
+          </label>
+
+          <label class="field">
+            <span>Max value</span>
+            <input id="maxValueInput" type="number" min="1" step="1" />
+          </label>
+        </div>
+
+        <label class="check">
+          <input id="captureExistingInput" type="checkbox" />
+          <span>Import currently visible history when capture starts</span>
+        </label>
+
+        <div class="actions">
+          <button id="startButton" class="primary" type="button">Start</button>
+          <button id="stopButton" type="button">Stop</button>
+          <button id="captureButton" type="button">Capture now</button>
+          <button id="scanButton" type="button">Scan frames</button>
+          <button id="pepetaPresetButton" type="button">Pepeta preset</button>
+          <button id="saveButton" type="button">Save settings</button>
+          <button id="dashboardButton" type="button">Dashboard</button>
+        </div>
+
+        <p id="message" class="message" role="status"></p>
+        <div id="frameDiagnostics" class="diagnostics"></div>
+      </section>
+
+      <section class="stats">
+        <article>
+          <span>Samples</span>
+          <strong id="sampleCount">0</strong>
+        </article>
+        <article>
+          <span>Median</span>
+          <strong id="medianValue">-</strong>
+        </article>
+        <article>
+          <span>Average</span>
+          <strong id="averageValue">-</strong>
+        </article>
+        <article>
+          <span>Highest</span>
+          <strong id="highestValue">-</strong>
+        </article>
+      </section>
+
+      <section class="panel compact">
+        <div class="section-title">
+          <h2>STREAK Bot</h2>
+          <span id="botStatusLabel" class="mini-pill">Off</span>
+        </div>
+
+        <label class="check">
+          <input id="botEnabledInput" type="checkbox" />
+          <span>Enable watch-only signal bot</span>
+        </label>
+
+        <div class="grid two">
+          <label class="check compact-check">
+            <input id="botRepeatAlertsInput" type="checkbox" />
+            <span>Repeat alerts</span>
+          </label>
+
+          <label class="check compact-check">
+            <input id="botGapAlertsInput" type="checkbox" />
+            <span>Gap alerts</span>
+          </label>
+
+          <label class="check compact-check">
+            <input id="botClusterAlertsInput" type="checkbox" />
+            <span>Cluster alerts</span>
+          </label>
+
+          <label class="field">
+            <span>Cooldown min</span>
+            <input id="botCooldownInput" type="number" min="5" max="1440" step="5" />
+          </label>
+        </div>
+
+        <div class="grid two">
+          <label class="field">
+            <span>Min records</span>
+            <input id="botMinRecordsInput" type="number" min="50" max="5000" step="10" />
+          </label>
+
+          <label class="field">
+            <span>Threshold</span>
+            <input id="botThresholdInput" type="number" min="2" max="1000" step="0.5" />
+          </label>
+        </div>
+
+        <div class="actions">
+          <button id="saveBotButton" type="button">Save bot</button>
+        </div>
+
+        <div id="botSummary" class="bot-summary"></div>
+      </section>
+
+      <section class="panel compact">
+        <h2>Descriptive patterns</h2>
+        <div id="patternList" class="pattern-list"></div>
+      </section>
+
+      <section class="panel compact">
+        <div class="section-title">
+          <h2>Recent results</h2>
+          <div class="actions tight">
+            <button id="exportButton" type="button">CSV</button>
+            <button id="clearButton" class="danger" type="button">Clear</button>
+          </div>
+        </div>
+        <ol id="recentList" class="recent-list"></ol>
+      </section>
+
+      <footer>
+        Past outcomes are logged for review only. They do not predict the next round.
+      </footer>
+    </main>
+
+    <script src="src/streak-bot.js"></script>
+    <script src="src/popup.js"></script>
+  </body>
+</html>

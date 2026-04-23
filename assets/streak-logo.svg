@@ -1,0 +1,13 @@
+<svg width="680" height="180" viewBox="0 0 680 180" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">STREAK logo</title>
+  <desc id="desc">A dark rounded square mark with a rising teal and blue streak, followed by the word STREAK.</desc>
+  <rect width="680" height="180" rx="28" fill="#101828"/>
+  <rect x="28" y="28" width="124" height="124" rx="32" fill="#172033"/>
+  <path d="M56 105C75 83 92 75 111 75C128 75 139 84 139 98C139 119 116 132 87 132C72 132 59 128 49 121" stroke="#E6F7F4" stroke-width="15" stroke-linecap="round"/>
+  <path d="M49 119C71 111 95 101 123 82C142 69 159 54 173 39" stroke="#2DD4BF" stroke-width="14" stroke-linecap="round"/>
+  <path d="M81 50C103 39 126 38 142 51" stroke="#60A5FA" stroke-width="13" stroke-linecap="round"/>
+  <circle cx="147" cy="45" r="8" fill="#F8FAFC"/>
+  <text x="184" y="123" fill="#F8FAFC" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="74" font-weight="900" letter-spacing="6">STREAK</text>
+  <path d="M184 148H576" stroke="#2DD4BF" stroke-width="5" stroke-linecap="round"/>
+  <path d="M184 148H362" stroke="#60A5FA" stroke-width="5" stroke-linecap="round"/>
+</svg>

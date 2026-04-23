@@ -1,0 +1,887 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>STREAK Dashboard</title>
+    <link rel="stylesheet" href="styles/dashboard.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="app-header">
+        <div class="brand-title">
+          <img class="brand-icon" src="assets/icons/icon-48.png" alt="" />
+          <div>
+            <p class="eyebrow">STREAK</p>
+            <h1>Analytics Dashboard</h1>
+          </div>
+        </div>
+        <div class="header-actions">
+          <span id="syncPill" class="pill">Sheets disconnected</span>
+          <button id="refreshButton" type="button">Refresh</button>
+          <button id="exportButton" type="button">Export CSV</button>
+        </div>
+      </header>
+
+      <section class="toolbar">
+        <label class="field span-6">
+          <span>Google Apps Script Web App URL</span>
+          <input id="endpointInput" type="url" placeholder="https://script.google.com/macros/s/.../exec" />
+        </label>
+
+        <label class="field span-2">
+          <span>Token</span>
+          <input id="tokenInput" type="password" autocomplete="off" placeholder="Optional" />
+        </label>
+
+        <label class="toggle span-2">
+          <input id="autoSyncInput" type="checkbox" />
+          <span>Auto sync</span>
+        </label>
+
+        <div class="button-group span-2">
+          <button id="saveSheetsButton" type="button">Save</button>
+          <button id="testSheetsButton" type="button">Test</button>
+        </div>
+
+        <div class="button-group span-12">
+          <button id="syncButton" class="primary" type="button">Sync New Records</button>
+          <button id="pullButton" type="button">Pull From Sheet</button>
+          <button id="markUnsyncedButton" type="button">Mark All Unsynced</button>
+          <button id="clearLocalButton" class="danger" type="button">Clear Local Data</button>
+        </div>
+
+        <p id="message" class="message span-12" role="status"></p>
+      </section>
+
+      <nav class="dashboard-tabs" aria-label="Dashboard sections">
+        <button type="button" class="tab-chip active" data-scroll-target="liveSection">Signal</button>
+        <button type="button" class="tab-chip" data-scroll-target="overviewSection">Overview</button>
+        <button type="button" class="tab-chip" data-scroll-target="forecastSection">Forecast</button>
+        <button type="button" class="tab-chip" data-scroll-target="intelligenceSection">Intel</button>
+        <button type="button" class="tab-chip" data-scroll-target="botSection">Bot</button>
+        <button type="button" class="tab-chip" data-scroll-target="dataSection">Data</button>
+      </nav>
+
+      <section class="stat-grid">
+        <article>
+          <span>Records</span>
+          <strong id="recordCount">0</strong>
+        </article>
+        <article>
+          <span>Unsynced</span>
+          <strong id="unsyncedCount">0</strong>
+        </article>
+        <article>
+          <span>Average</span>
+          <strong id="averageValue">-</strong>
+        </article>
+        <article>
+          <span>Median</span>
+          <strong id="medianValue">-</strong>
+        </article>
+        <article>
+          <span>Highest</span>
+          <strong id="highestValue">-</strong>
+        </article>
+        <article>
+          <span>Last Capture</span>
+          <strong id="lastCaptureValue">-</strong>
+        </article>
+      </section>
+
+      <section id="liveSection" class="panel live-panel">
+        <div class="section-title">
+          <div>
+            <h2>Live Signal Center</h2>
+            <span>Status, quality, history</span>
+          </div>
+          <span id="liveSignalScope">Waiting for records</span>
+        </div>
+
+        <div class="live-grid">
+          <article class="live-now">
+            <div class="live-status-row">
+              <span id="liveSignalStatus" class="live-status">No signal</span>
+              <strong id="liveEvidenceScore" class="score-chip">-</strong>
+            </div>
+            <p id="liveSignalReason">STREAK needs captured records before it can evaluate a live signal.</p>
+            <div class="live-visuals" aria-label="Live signal scores">
+              <div id="liveEvidenceRing" class="score-ring">
+                <strong id="liveEvidenceRingValue">-</strong>
+                <span>Evidence</span>
+              </div>
+              <div id="liveDataQualityRing" class="score-ring">
+                <strong id="liveDataQualityRingValue">-</strong>
+                <span>Quality</span>
+              </div>
+            </div>
+            <div class="live-metrics">
+              <div>
+                <span>Band</span>
+                <strong id="liveTopBand">-</strong>
+              </div>
+              <div>
+                <span>Repeat</span>
+                <strong id="liveRepeatStatus">-</strong>
+              </div>
+              <div>
+                <span>Source</span>
+                <strong id="liveLatestSource">-</strong>
+              </div>
+              <div>
+                <span>Time</span>
+                <strong id="liveLatestCapture">-</strong>
+              </div>
+            </div>
+          </article>
+
+          <article class="analysis-card">
+            <div class="section-title">
+              <h3>Data Quality</h3>
+              <span id="liveDataQualityScore">-</span>
+            </div>
+            <div class="quality-meter">
+              <i id="dataQualityBar"></i>
+            </div>
+            <ul id="dataQualityNotes" class="pattern-notes compact-notes"></ul>
+          </article>
+
+          <article class="analysis-card wide">
+            <div class="section-title">
+              <h3>Signal History</h3>
+              <span>Past signal -> next result</span>
+            </div>
+            <div class="table-wrap mini">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Captured</th>
+                    <th>Source</th>
+                    <th>Signal</th>
+                    <th>Evidence</th>
+                    <th>Next Actual</th>
+                  </tr>
+                </thead>
+                <tbody id="signalHistoryBody"></tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section id="overviewSection" class="chart-grid">
+        <article class="panel">
+          <div class="section-title">
+            <h2>Recent Trend</h2>
+            <span id="trendLabel">Last 100 records</span>
+          </div>
+          <canvas id="trendCanvas" width="760" height="260"></canvas>
+        </article>
+
+        <article class="panel">
+          <div class="section-title">
+            <h2>Distribution</h2>
+            <span>Multiplier buckets</span>
+          </div>
+          <canvas id="distributionCanvas" width="520" height="260"></canvas>
+        </article>
+      </section>
+
+      <section id="forecastSection" class="panel prediction-panel">
+        <div class="section-title">
+          <div>
+            <h2>Prediction Lab</h2>
+            <span>Probabilities and backtests</span>
+          </div>
+          <span id="predictionScopeLabel">Grounded in local records</span>
+        </div>
+
+        <div class="analysis-controls">
+          <label class="field">
+            <span>Pattern lookback</span>
+            <select id="predictionLookbackInput">
+              <option value="3">3 rounds</option>
+              <option value="5" selected>5 rounds</option>
+              <option value="8">8 rounds</option>
+              <option value="10">10 rounds</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Minimum similarity</span>
+            <select id="predictionSimilarityInput">
+              <option value="50">50% bin match</option>
+              <option value="60" selected>60% bin match</option>
+              <option value="75">75% bin match</option>
+              <option value="100">Exact bin match</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Backtest cases</span>
+            <input id="predictionBacktestInput" type="number" min="50" max="1000" step="50" value="250" />
+          </label>
+          <label class="field">
+            <span>Recent model window</span>
+            <input id="predictionRecentInput" type="number" min="30" max="500" step="10" value="120" />
+          </label>
+        </div>
+
+        <div class="pattern-stats prediction-stats">
+          <article class="signal-card">
+            <span>Evidence Signal</span>
+            <strong id="predictionSignal">-</strong>
+          </article>
+          <article>
+            <span>Top Band</span>
+            <strong id="predictionTopBand">-</strong>
+          </article>
+          <article>
+            <span>Top Probability</span>
+            <strong id="predictionTopProbability">-</strong>
+          </article>
+          <article>
+            <span>Similar Matches</span>
+            <strong id="predictionMatches">-</strong>
+          </article>
+          <article>
+            <span>Backtest Accuracy</span>
+            <strong id="predictionBacktestAccuracy">-</strong>
+          </article>
+          <article>
+            <span>Baseline Accuracy</span>
+            <strong id="predictionBaselineAccuracy">-</strong>
+          </article>
+        </div>
+
+        <div class="analysis-grid">
+          <article class="analysis-card wide">
+            <div class="section-title">
+              <h3>Next-Round Probability Bands</h3>
+              <span id="predictionGrounding">No records analyzed</span>
+            </div>
+            <div id="predictionBars" class="probability-list"></div>
+          </article>
+
+          <article class="analysis-card notes-card">
+            <details>
+              <summary>
+                <span>Notes</span>
+                <strong id="predictionConfidenceLabel">Needs data</strong>
+              </summary>
+              <ul id="predictionNotes" class="pattern-notes"></ul>
+            </details>
+          </article>
+
+          <article class="analysis-card">
+            <div class="section-title">
+              <h3>Model Blend</h3>
+              <span>Weights are evidence-based</span>
+            </div>
+            <div class="table-wrap mini">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Model</th>
+                    <th>Sample</th>
+                    <th>Weight</th>
+                    <th>Top Band</th>
+                  </tr>
+                </thead>
+                <tbody id="predictionModelsBody"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="analysis-card">
+            <div class="section-title">
+              <h3>Model Leaderboard</h3>
+              <span>Backtested top-band accuracy</span>
+            </div>
+            <div class="table-wrap mini">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Model</th>
+                    <th>Cases</th>
+                    <th>Accuracy</th>
+                    <th>Avg Prob.</th>
+                  </tr>
+                </thead>
+                <tbody id="modelLeaderboardBody"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="analysis-card wide">
+            <div class="section-title">
+              <h3>Nearest Historical Patterns</h3>
+              <span>Similar setups</span>
+            </div>
+            <div class="table-wrap mini">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Sequence</th>
+                    <th>Next Outcome</th>
+                    <th>Similarity</th>
+                    <th>Seen At</th>
+                  </tr>
+                </thead>
+                <tbody id="similarOutcomesBody"></tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section id="intelligenceSection" class="panel">
+        <div class="section-title">
+          <div>
+            <h2>Intelligence Layer</h2>
+            <span>Gaps, repeats, recycle signal</span>
+          </div>
+          <span id="patternScopeLabel">All records</span>
+        </div>
+
+        <div class="analysis-controls">
+          <label class="field">
+            <span>High-odds threshold</span>
+            <input id="thresholdInput" type="number" min="2" max="1000" step="0.5" value="10" />
+          </label>
+          <label class="field">
+            <span>Sequence length</span>
+            <select id="sequenceLengthInput">
+              <option value="4">4 rounds</option>
+              <option value="5" selected>5 rounds</option>
+              <option value="6">6 rounds</option>
+              <option value="8">8 rounds</option>
+              <option value="10">10 rounds</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Max lag scan</span>
+            <input id="maxLagInput" type="number" min="20" max="1000" step="20" value="240" />
+          </label>
+          <label class="field">
+            <span>Board window</span>
+            <input id="boardWindowInput" type="number" min="100" max="2000" step="100" value="600" />
+          </label>
+        </div>
+
+        <div class="pattern-stats">
+          <article>
+            <span id="highHitsLabel">10x+ Hits</span>
+            <strong id="over10Count">0</strong>
+          </article>
+          <article>
+            <span id="highRateLabel">10x+ Rate</span>
+            <strong id="over10Rate">-</strong>
+          </article>
+          <article>
+            <span>Average Gap</span>
+            <strong id="averageGap">-</strong>
+          </article>
+          <article>
+            <span>Current Gap</span>
+            <strong id="currentGap">-</strong>
+          </article>
+          <article>
+            <span>Longest Gap</span>
+            <strong id="longestGap">-</strong>
+          </article>
+          <article>
+            <span>Clustered Hits</span>
+            <strong id="clusteredHits">-</strong>
+          </article>
+          <article class="signal-card">
+            <span>Recycle Signal</span>
+            <strong id="recycleSignal">-</strong>
+          </article>
+          <article>
+            <span>Best Lag</span>
+            <strong id="bestLag">-</strong>
+          </article>
+          <article>
+            <span>Lag Lift</span>
+            <strong id="lagLift">-</strong>
+          </article>
+          <article>
+            <span>Repeat Windows</span>
+            <strong id="repeatWindows">-</strong>
+          </article>
+          <article>
+            <span>Exact Repeats</span>
+            <strong id="exactRepeatWindows">-</strong>
+          </article>
+          <article>
+            <span>Entropy</span>
+            <strong id="entropyValue">-</strong>
+          </article>
+        </div>
+
+        <div class="analysis-grid">
+          <article class="analysis-card wide">
+            <div class="section-title">
+              <h3>High-Odds Board</h3>
+              <span id="boardLabel">Last 600 rounds</span>
+            </div>
+            <div id="over10Board" class="heat-board" aria-label="10x+ board distribution"></div>
+            <div class="legend">
+              <span><i class="cell low"></i>Below threshold</span>
+              <span><i class="cell hit"></i>At or above threshold</span>
+              <span><i class="cell high"></i>50x+</span>
+            </div>
+          </article>
+
+          <article class="analysis-card wide enterprise-model-card">
+            <div class="section-title">
+              <div>
+                <h3>10x+ Enterprise Model</h3>
+                <span>Sequence, gap deltas, and between-hit behavior</span>
+              </div>
+              <span id="enterpriseModelScope">Waiting for threshold hits</span>
+            </div>
+
+            <div class="enterprise-stats">
+              <article>
+                <span>Events</span>
+                <strong id="enterpriseHitCount">0</strong>
+              </article>
+              <article>
+                <span>Last Gap Delta</span>
+                <strong id="enterpriseGapDelta">-</strong>
+              </article>
+              <article>
+                <span>Gap Volatility</span>
+                <strong id="enterpriseGapVolatility">-</strong>
+              </article>
+              <article>
+                <span>Current vs Median</span>
+                <strong id="enterpriseGapPressure">-</strong>
+              </article>
+              <article>
+                <span>Between Avg.</span>
+                <strong id="enterpriseBetweenAverage">-</strong>
+              </article>
+              <article>
+                <span>Insights</span>
+                <strong id="enterpriseInsightCount">-</strong>
+              </article>
+            </div>
+
+            <div id="enterprisePressurePanel" class="pressure-model" data-level="needs-data">
+              <div class="pressure-header">
+                <div>
+                  <span id="enterprisePressureTitle">Next 10x+ Pressure</span>
+                  <strong id="enterprisePressureScore">-</strong>
+                </div>
+                <span id="enterprisePressureStatus">Needs data</span>
+              </div>
+              <div class="pressure-track" aria-label="Next high-odds pressure score">
+                <i id="enterprisePressureBar"></i>
+              </div>
+              <p id="enterprisePressureReason">Collect more threshold events to activate the pressure formula.</p>
+              <code id="enterprisePressureFormula">0.16Gp + 0.11Gz + 0.12H + 0.10D + 0.07C + 0.10B + 0.10N + 0.07S + 0.10P + 0.05V + 0.02R</code>
+              <div class="pressure-components">
+                <article>
+                  <span>Gap Percentile</span>
+                  <strong id="pressureGapPercentile">-</strong>
+                </article>
+                <article>
+                  <span>Gap Deviation</span>
+                  <strong id="pressureGapDeviation">-</strong>
+                </article>
+                <article>
+                  <span>Hazard Echo</span>
+                  <strong id="pressureHazardEcho">-</strong>
+                </article>
+                <article>
+                  <span>Delta Trend</span>
+                  <strong id="pressureDeltaTrend">-</strong>
+                </article>
+                <article>
+                  <span>Cluster Pulse</span>
+                  <strong id="pressureClusterPulse">-</strong>
+                </article>
+                <article>
+                  <span>Between Strength</span>
+                  <strong id="pressureBetweenStrength">-</strong>
+                </article>
+                <article>
+                  <span>Near-Miss Density</span>
+                  <strong id="pressureNearMissDensity">-</strong>
+                </article>
+                <article>
+                  <span>Cold Streak Stress</span>
+                  <strong id="pressureColdStreak">-</strong>
+                </article>
+                <article>
+                  <span>Recent Pace</span>
+                  <strong id="pressureRecentPace">-</strong>
+                </article>
+                <article>
+                  <span>Volatility Regime</span>
+                  <strong id="pressureVolatilityRegime">-</strong>
+                </article>
+                <article>
+                  <span>Source Edge</span>
+                  <strong id="pressureSourceEdge">-</strong>
+                </article>
+                <article>
+                  <span>Sample Confidence</span>
+                  <strong id="pressureSampleConfidence">-</strong>
+                </article>
+              </div>
+            </div>
+
+            <div class="enterprise-grid">
+              <div>
+                <h4>High-Odds Event Sequence</h4>
+                <div class="table-wrap mini enterprise-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Value</th>
+                        <th>Gap</th>
+                        <th>Gap Delta</th>
+                        <th>Value Delta</th>
+                        <th>Source</th>
+                        <th>Captured</th>
+                      </tr>
+                    </thead>
+                    <tbody id="enterpriseEventBody"></tbody>
+                  </table>
+                </div>
+              </div>
+              <div>
+                <h4>Between-Hit Windows</h4>
+                <div class="table-wrap mini enterprise-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Window</th>
+                        <th>Rounds</th>
+                        <th>Average</th>
+                        <th>Max</th>
+                        <th>2x+ Rate</th>
+                        <th>Dominant Band</th>
+                      </tr>
+                    </thead>
+                    <tbody id="enterpriseBetweenBody"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <ul id="enterpriseNotes" class="pattern-notes enterprise-notes"></ul>
+          </article>
+
+          <article class="analysis-card">
+            <div class="section-title">
+              <h3>Position Rate</h3>
+              <span>20-round columns</span>
+            </div>
+            <canvas id="positionCanvas" width="520" height="230"></canvas>
+          </article>
+
+          <article class="analysis-card">
+            <div class="section-title">
+              <h3>Gap Map</h3>
+              <span>Between high hits</span>
+            </div>
+            <canvas id="gapCanvas" width="520" height="230"></canvas>
+          </article>
+
+          <article class="analysis-card">
+            <div class="section-title">
+              <h3>Lag Scan</h3>
+              <span>Cycle-similarity lift</span>
+            </div>
+            <canvas id="lagCanvas" width="520" height="230"></canvas>
+          </article>
+
+          <article class="analysis-card notes-card">
+            <details>
+              <summary>
+                <span>Notes</span>
+                <strong id="patternConfidenceLabel">Needs data</strong>
+              </summary>
+              <ul id="patternNotes" class="pattern-notes"></ul>
+            </details>
+          </article>
+
+          <article class="analysis-card">
+            <div class="section-title">
+              <h3>After High-Odds Hit</h3>
+              <span>Next 5 rounds</span>
+            </div>
+            <div class="table-wrap mini">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Offset</th>
+                    <th>Average</th>
+                    <th>2x+ Rate</th>
+                    <th id="afterThresholdLabel">10x+ Rate</th>
+                  </tr>
+                </thead>
+                <tbody id="after10Body"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="analysis-card wide">
+            <div class="section-title">
+              <h3>Recycling Intelligence</h3>
+              <span>Repeated fingerprints</span>
+            </div>
+            <div class="recycle-grid">
+              <div>
+                <h4>Top Repeated Binned Sequences</h4>
+                <div class="table-wrap mini">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Sequence</th>
+                        <th>Occurrences</th>
+                        <th>Last Seen</th>
+                      </tr>
+                    </thead>
+                    <tbody id="repeatedSequencesBody"></tbody>
+                  </table>
+                </div>
+              </div>
+              <div>
+                <h4>Top Exact Rounded Repeats</h4>
+                <div class="table-wrap mini">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Sequence</th>
+                        <th>Occurrences</th>
+                        <th>Last Seen</th>
+                      </tr>
+                    </thead>
+                    <tbody id="exactSequencesBody"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="analysis-card wide">
+            <div class="section-title">
+              <h3>Source Breakdown</h3>
+              <span>Rooms and sources</span>
+            </div>
+            <div class="table-wrap mini">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Source</th>
+                    <th>Records</th>
+                    <th id="sourceThresholdLabel">10x+</th>
+                    <th>Rate</th>
+                    <th>Average Gap</th>
+                  </tr>
+                </thead>
+                <tbody id="sourceBreakdownBody"></tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section id="botSection" class="panel streak-bot-panel">
+        <div class="section-title">
+          <div>
+            <h2>STREAK Bot</h2>
+            <span>Watch-only alert layer from captured records</span>
+          </div>
+          <div class="section-actions">
+            <span id="botStatusChip" class="bot-status-chip">Off</span>
+            <span id="botPanelScope">Waiting for records</span>
+          </div>
+        </div>
+
+        <div class="analysis-controls bot-controls">
+          <label class="toggle bot-toggle">
+            <input id="botEnabledInput" type="checkbox" />
+            <span>Bot armed</span>
+          </label>
+          <label class="toggle bot-toggle">
+            <input id="botRepeatAlertsInput" type="checkbox" />
+            <span>Repeat alerts</span>
+          </label>
+          <label class="toggle bot-toggle">
+            <input id="botGapAlertsInput" type="checkbox" />
+            <span>Gap alerts</span>
+          </label>
+          <label class="toggle bot-toggle">
+            <input id="botClusterAlertsInput" type="checkbox" />
+            <span>Cluster alerts</span>
+          </label>
+          <label class="field">
+            <span>Min records</span>
+            <input id="botMinRecordsInput" type="number" min="50" max="5000" step="10" value="120" />
+          </label>
+          <label class="field">
+            <span>Repeat length</span>
+            <select id="botRepeatLengthInput">
+              <option value="3">3 rounds</option>
+              <option value="4">4 rounds</option>
+              <option value="5" selected>5 rounds</option>
+              <option value="6">6 rounds</option>
+              <option value="8">8 rounds</option>
+              <option value="10">10 rounds</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>High-odds threshold</span>
+            <input id="botThresholdInput" type="number" min="2" max="1000" step="0.5" value="10" />
+          </label>
+          <label class="field">
+            <span>Cooldown min</span>
+            <input id="botCooldownInput" type="number" min="5" max="1440" step="5" value="30" />
+          </label>
+          <div class="button-group bot-actions">
+            <button id="saveBotButton" class="primary" type="button">Save Bot</button>
+            <button id="clearBotAlertsButton" type="button">Clear Alerts</button>
+          </div>
+        </div>
+
+        <div class="pattern-stats bot-stats">
+          <article class="signal-card">
+            <span>Bot State</span>
+            <strong id="botStateValue">-</strong>
+          </article>
+          <article>
+            <span>Live Triggers</span>
+            <strong id="botTriggerCount">0</strong>
+          </article>
+          <article>
+            <span>Repeat Signal</span>
+            <strong id="botRepeatValue">-</strong>
+          </article>
+          <article>
+            <span>Current Gap</span>
+            <strong id="botGapValue">-</strong>
+          </article>
+          <article>
+            <span>Recent High Hits</span>
+            <strong id="botRecentHitsValue">-</strong>
+          </article>
+          <article>
+            <span>Alerts Logged</span>
+            <strong id="botAlertsLoggedValue">0</strong>
+          </article>
+        </div>
+
+        <div class="analysis-grid">
+          <article class="analysis-card">
+            <div class="section-title">
+              <h3>Live Triggers</h3>
+              <span id="botTriggerState">No triggers</span>
+            </div>
+            <div id="botTriggerSummary" class="bot-trigger-list"></div>
+          </article>
+
+          <article class="analysis-card">
+            <div class="section-title">
+              <h3>Bot Notes</h3>
+              <span id="botConfidenceLabel">Needs data</span>
+            </div>
+            <ul id="botNotes" class="pattern-notes"></ul>
+          </article>
+
+          <article class="analysis-card wide">
+            <div class="section-title">
+              <h3>Recent Alerts</h3>
+              <span id="botAlertCount">0 alerts</span>
+            </div>
+            <div class="table-wrap mini bot-alert-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Kind</th>
+                    <th>Level</th>
+                    <th>Signal</th>
+                    <th>Score</th>
+                  </tr>
+                </thead>
+                <tbody id="botAlertsBody"></tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section id="dataSection" class="panel">
+        <div class="section-title">
+          <h2>All Collected Data</h2>
+          <span id="tableCount">0 shown</span>
+        </div>
+
+        <div class="filters">
+          <label class="field">
+            <span>Search</span>
+            <input id="searchInput" type="search" placeholder="URL, title, mode, value" />
+          </label>
+          <label class="field">
+            <span>Min value</span>
+            <input id="filterMinInput" type="number" min="0" step="0.01" />
+          </label>
+          <label class="field">
+            <span>Max value</span>
+            <input id="filterMaxInput" type="number" min="0" step="0.01" />
+          </label>
+          <label class="field">
+            <span>Sync</span>
+            <select id="syncFilterInput">
+              <option value="all">All records</option>
+              <option value="synced">Synced</option>
+              <option value="unsynced">Unsynced</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="data-actions">
+          <span id="selectedCount">0 selected</span>
+          <button id="clearSelectionButton" type="button">Clear Selection</button>
+          <button id="deleteSelectedButton" class="danger" type="button">Delete Selected</button>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="select-column">
+                  <input id="selectPageCheckbox" type="checkbox" aria-label="Select visible records" />
+                </th>
+                <th>Captured</th>
+                <th>Value</th>
+                <th>Mode</th>
+                <th>Source</th>
+                <th>Page</th>
+                <th>Sync</th>
+              </tr>
+            </thead>
+            <tbody id="recordsBody"></tbody>
+          </table>
+        </div>
+
+        <div class="pagination">
+          <button id="prevPageButton" type="button">Previous</button>
+          <span id="pageLabel">Page 1</span>
+          <button id="nextPageButton" type="button">Next</button>
+        </div>
+      </section>
+    </main>
+
+    <script src="src/sheets-client.js"></script>
+    <script src="src/streak-bot.js"></script>
+    <script src="src/dashboard.js"></script>
+  </body>
+</html>
