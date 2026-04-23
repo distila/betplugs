@@ -149,6 +149,7 @@ const elements = {
   botRepeatLengthInput: document.getElementById("botRepeatLengthInput"),
   botThresholdInput: document.getElementById("botThresholdInput"),
   botCooldownInput: document.getElementById("botCooldownInput"),
+  botCooldownCountdown: document.getElementById("botCooldownCountdown"),
   saveBotButton: document.getElementById("saveBotButton"),
   clearBotAlertsButton: document.getElementById("clearBotAlertsButton"),
   botStateValue: document.getElementById("botStateValue"),
@@ -183,6 +184,7 @@ const state = {
   settings: { ...SheetsClient.DEFAULT_SHEETS_SETTINGS },
   botSettings: { ...FALLBACK_BOT_SETTINGS },
   botLogs: [],
+  botAnalysis: null,
   filtered: [],
   selectedIds: new Set(),
   page: 1,
@@ -198,6 +200,8 @@ const state = {
     predictionRecent: 120
   }
 };
+
+let botCooldownTimer = null;
 
 function storageGet(keys) {
   return new Promise((resolve) => {
@@ -680,6 +684,7 @@ function render() {
   const patternAnalysis = analyzePatterns(state.records, state.analytics);
   const liveSignal = analyzeLiveSignal(state.records, predictionAnalysis, patternAnalysis, state.analytics);
   const streakBot = analyzeStreakBot(state.records, state.botSettings);
+  state.botAnalysis = streakBot;
 
   elements.recordCount.textContent = String(summary.total);
   elements.unsyncedCount.textContent = String(summary.unsynced);
@@ -2705,6 +2710,22 @@ function analyzeStreakBot(records, settings = state.botSettings) {
   };
 }
 
+function getBotCooldownState(bot, now = Date.now()) {
+  const api = getStreakBotApi();
+  if (!api?.getCooldownState) {
+    return {
+      cooling: false,
+      mutedCount: 0,
+      activeTriggerCount: bot?.triggers?.length || 0,
+      nextReadyMs: 0,
+      fullClearMs: 0,
+      entries: []
+    };
+  }
+
+  return api.getCooldownState(state.botLogs, bot?.settings || state.botSettings, bot?.triggers || [], now);
+}
+
 function buildStreakBotNotes(analysis) {
   if (!analysis.available) {
     return analysis.notes || ["Bot module unavailable."];
@@ -2744,6 +2765,7 @@ function buildStreakBotNotes(analysis) {
 }
 
 function renderStreakBot(bot) {
+  const cooldown = getBotCooldownState(bot);
   const tone = streakBotTone(bot);
   elements.botStatusChip.textContent = botStateLabel(bot);
   elements.botStatusChip.dataset.state = tone;
@@ -2757,7 +2779,7 @@ function renderStreakBot(bot) {
   elements.botGapValue.textContent = Number.isFinite(bot.avgGap) ? `${bot.currentGap} / ${bot.avgGap.toFixed(1)}` : "-";
   elements.botRecentHitsValue.textContent = String(bot.recentHighHits || 0);
   elements.botAlertsLoggedValue.textContent = String(state.botLogs.length);
-  elements.botTriggerState.textContent = bot.triggers.length ? `${bot.triggers.length} live` : (bot.ready ? "Monitoring" : "Needs data");
+  elements.botTriggerState.textContent = botTriggerStateLabel(bot, cooldown);
   elements.botConfidenceLabel.textContent = getConfidenceLabel(bot.total);
 
   const stateCard = elements.botStateValue.closest(".signal-card");
@@ -2765,9 +2787,11 @@ function renderStreakBot(bot) {
     stateCard.dataset.signal = tone;
   }
 
-  renderBotTriggerSummary(bot.triggers);
+  renderBotCooldownHint(bot, cooldown);
+  renderBotTriggerSummary(bot.triggers, cooldown);
   renderBotNotes(bot.notes || []);
   renderBotAlerts(state.botLogs);
+  ensureBotCooldownTimer();
 }
 
 function botStateLabel(bot) {
@@ -2810,7 +2834,72 @@ function streakBotTone(bot) {
   return "low";
 }
 
-function renderBotTriggerSummary(triggers) {
+function botTriggerStateLabel(bot, cooldown) {
+  if (!bot.settings?.enabled) {
+    return "Bot off";
+  }
+
+  if (!bot.ready) {
+    return "Needs data";
+  }
+
+  if (!bot.triggers.length) {
+    return "Monitoring";
+  }
+
+  if (!cooldown.cooling) {
+    return `${bot.triggers.length} live`;
+  }
+
+  return `${bot.triggers.length} live • ${formatBotDuration(cooldown.nextReadyMs)} left`;
+}
+
+function renderBotCooldownHint(bot, cooldown) {
+  const node = elements.botCooldownCountdown;
+  if (!node) {
+    return;
+  }
+
+  let text = "Ready now";
+  let live = false;
+  let title = "";
+
+  if (!bot.settings?.enabled) {
+    text = "Bot disabled";
+  } else if (!bot.ready) {
+    const missing = Math.max(0, bot.settings.minRecords - bot.total);
+    text = missing ? `${missing} more records to arm` : "Waiting for records";
+  } else if (cooldown.cooling) {
+    text = `${formatBotDuration(cooldown.nextReadyMs)} left`;
+    live = true;
+    title = cooldown.mutedCount > 1
+      ? `${cooldown.mutedCount} matching triggers are muted. Full clear in ${formatBotDuration(cooldown.fullClearMs)}.`
+      : `Matching trigger muted. Full clear in ${formatBotDuration(cooldown.fullClearMs)}.`;
+  }
+
+  node.textContent = text;
+  node.title = title;
+  node.classList.toggle("live", live);
+}
+
+function ensureBotCooldownTimer() {
+  if (botCooldownTimer) {
+    clearInterval(botCooldownTimer);
+  }
+
+  botCooldownTimer = window.setInterval(() => {
+    if (!state.botAnalysis) {
+      return;
+    }
+
+    const cooldown = getBotCooldownState(state.botAnalysis);
+    renderBotCooldownHint(state.botAnalysis, cooldown);
+    elements.botTriggerState.textContent = botTriggerStateLabel(state.botAnalysis, cooldown);
+    renderBotTriggerSummary(state.botAnalysis.triggers || [], cooldown);
+  }, 1000);
+}
+
+function renderBotTriggerSummary(triggers, cooldown = { entries: [] }) {
   if (!triggers.length) {
     elements.botTriggerSummary.replaceChildren(emptyInline("No live STREAK Bot triggers."));
     return;
@@ -2818,6 +2907,10 @@ function renderBotTriggerSummary(triggers) {
 
   elements.botTriggerSummary.replaceChildren(
     ...triggers.map((trigger) => {
+      const muted = cooldown.entries.find((entry) => (
+        entry.trigger.kind === trigger.kind &&
+        entry.trigger.signature === trigger.signature
+      ));
       const card = document.createElement("article");
       card.className = "bot-trigger";
       card.dataset.level = trigger.level;
@@ -2833,12 +2926,31 @@ function renderBotTriggerSummary(triggers) {
 
       const body = document.createElement("p");
       body.textContent = trigger.message;
-
       top.append(title, badge);
+
+      if (muted) {
+        const cooldownNode = document.createElement("small");
+        cooldownNode.textContent = `Cooldown ${formatBotDuration(muted.remainingMs)} left`;
+        card.append(top, body, cooldownNode);
+        return card;
+      }
+
       card.append(top, body);
       return card;
     })
   );
+}
+
+function formatBotDuration(ms) {
+  const api = getStreakBotApi();
+  if (api?.formatDuration) {
+    return api.formatDuration(ms);
+  }
+
+  const totalSeconds = Math.max(0, Math.ceil(Number(ms) / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return minutes > 0 ? `${minutes}m ${String(seconds).padStart(2, "0")}s` : `${seconds}s`;
 }
 
 function renderBotNotes(notes) {

@@ -52,6 +52,7 @@ const elements = {
   botGapAlertsInput: document.getElementById("botGapAlertsInput"),
   botClusterAlertsInput: document.getElementById("botClusterAlertsInput"),
   botCooldownInput: document.getElementById("botCooldownInput"),
+  botCooldownCountdown: document.getElementById("botCooldownCountdown"),
   botMinRecordsInput: document.getElementById("botMinRecordsInput"),
   botThresholdInput: document.getElementById("botThresholdInput"),
   saveBotButton: document.getElementById("saveBotButton"),
@@ -63,6 +64,9 @@ const elements = {
 let activeTab = null;
 let activeFrameIds = [];
 let currentRecords = [];
+let currentBotLogs = [];
+let currentBotSettings = StreakBot.DEFAULT_BOT_SETTINGS;
+let botSummaryTimer = null;
 
 document.addEventListener("DOMContentLoaded", init);
 
@@ -76,6 +80,18 @@ elements.saveBotButton.addEventListener("click", saveBotSettings);
 elements.dashboardButton.addEventListener("click", openDashboard);
 elements.exportButton.addEventListener("click", exportCsv);
 elements.clearButton.addEventListener("click", clearRecords);
+[
+  elements.botEnabledInput,
+  elements.botRepeatAlertsInput,
+  elements.botGapAlertsInput,
+  elements.botClusterAlertsInput,
+  elements.botCooldownInput,
+  elements.botMinRecordsInput,
+  elements.botThresholdInput
+].forEach((input) => {
+  input.addEventListener("input", previewBotSummary);
+  input.addEventListener("change", previewBotSummary);
+});
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "local" && changes[RECORDS_KEY]) {
@@ -492,12 +508,21 @@ async function refreshBotState() {
 }
 
 function renderBotSummary(logs = null, settings = null) {
-  const botSettings = settings || readBotSettings();
+  currentBotLogs = Array.isArray(logs) ? logs : currentBotLogs;
+  currentBotSettings = settings || readBotSettings();
+  updateBotSummary();
+  ensureBotSummaryTicker();
+}
+
+function updateBotSummary() {
+  const botSettings = currentBotSettings || readBotSettings();
   const analysis = StreakBot.analyze(currentRecords, botSettings);
-  const entries = Array.isArray(logs) ? logs : [];
+  const entries = Array.isArray(currentBotLogs) ? currentBotLogs : [];
+  const cooldown = StreakBot.getCooldownState(entries, botSettings, analysis.triggers);
 
   elements.botStatusLabel.textContent = botSettings.enabled ? "Armed" : "Off";
   elements.botStatusLabel.classList.toggle("live", botSettings.enabled);
+  renderBotCooldownCountdown(botSettings, analysis, cooldown);
 
   const rows = [];
   if (!botSettings.enabled) {
@@ -508,6 +533,7 @@ function renderBotSummary(logs = null, settings = null) {
     rows.push(["State", analysis.triggers.length ? `${analysis.triggers.length} live trigger${analysis.triggers.length === 1 ? "" : "s"}` : "Monitoring"]);
   }
 
+  rows.push(["Cooldown", botCooldownLabel(botSettings, analysis, cooldown)]);
   rows.push(["Repeat", analysis.repeat.repeated ? `${analysis.repeat.count}x` : "None"]);
   rows.push(["Gap", Number.isFinite(analysis.avgGap) ? `${analysis.currentGap} vs ${analysis.avgGap.toFixed(1)}` : "-"]);
   rows.push(["Recent high hits", String(analysis.recentHighHits)]);
@@ -527,6 +553,60 @@ function renderBotSummary(logs = null, settings = null) {
       return row;
     })
   );
+}
+
+function previewBotSummary() {
+  currentBotSettings = readBotSettings();
+  updateBotSummary();
+}
+
+function ensureBotSummaryTicker() {
+  if (botSummaryTimer) {
+    clearInterval(botSummaryTimer);
+  }
+
+  botSummaryTimer = window.setInterval(() => {
+    updateBotSummary();
+  }, 1000);
+}
+
+function renderBotCooldownCountdown(settings, analysis, cooldown) {
+  const node = elements.botCooldownCountdown;
+  if (!node) {
+    return;
+  }
+
+  let text = "Ready now";
+  let live = false;
+
+  if (!settings.enabled) {
+    text = "Bot disabled";
+  } else if (!analysis.ready) {
+    const remaining = Math.max(0, settings.minRecords - analysis.total);
+    text = remaining ? `${remaining} more records to arm` : "Waiting for records";
+  } else if (cooldown.cooling) {
+    text = `${StreakBot.formatDuration(cooldown.nextReadyMs)} left`;
+    live = true;
+  }
+
+  node.textContent = text;
+  node.classList.toggle("live", live);
+}
+
+function botCooldownLabel(settings, analysis, cooldown) {
+  if (!settings.enabled) {
+    return "Off";
+  }
+
+  if (!analysis.ready) {
+    return "Waiting";
+  }
+
+  if (!cooldown.cooling) {
+    return "Ready now";
+  }
+
+  return `${StreakBot.formatDuration(cooldown.nextReadyMs)} left`;
 }
 
 function computeStats(values) {

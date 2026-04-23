@@ -150,14 +150,91 @@
 
   function shouldNotify(signal, logs, settings, now = Date.now()) {
     const cooldownMs = normalizeSettings(settings).cooldownMinutes * 60 * 1000;
-    const recentMatch = (Array.isArray(logs) ? logs : []).find((entry) => (
-      entry &&
-      entry.kind === signal.kind &&
-      entry.signature === signal.signature &&
-      now - Date.parse(entry.createdAt || 0) < cooldownMs
-    ));
+    const recentMatch = findRecentLogMatch(signal, logs, cooldownMs, now);
 
     return !recentMatch;
+  }
+
+  function getCooldownState(logs, rawSettings = DEFAULT_BOT_SETTINGS, triggers = [], now = Date.now()) {
+    const settings = normalizeSettings(rawSettings);
+    const cooldownMs = settings.cooldownMinutes * 60 * 1000;
+    const muted = (Array.isArray(triggers) ? triggers : [])
+      .map((trigger) => {
+        const entry = findRecentLogMatch(trigger, logs, cooldownMs, now);
+        if (!entry) {
+          return null;
+        }
+
+        const createdAtMs = Date.parse(entry.createdAt || 0);
+        const remainingMs = cooldownMs - (now - createdAtMs);
+        if (!Number.isFinite(remainingMs) || remainingMs <= 0) {
+          return null;
+        }
+
+        return {
+          trigger,
+          entry,
+          createdAtMs,
+          remainingMs
+        };
+      })
+      .filter(Boolean)
+      .sort((left, right) => left.remainingMs - right.remainingMs);
+
+    return {
+      cooling: muted.length > 0,
+      mutedCount: muted.length,
+      activeTriggerCount: Array.isArray(triggers) ? triggers.length : 0,
+      nextReadyMs: muted[0]?.remainingMs || 0,
+      fullClearMs: muted.length ? muted[muted.length - 1].remainingMs : 0,
+      cooldownMs,
+      entries: muted
+    };
+  }
+
+  function findRecentLogMatch(signal, logs, cooldownMs, now = Date.now()) {
+    const entries = Array.isArray(logs) ? logs : [];
+    let latestMatch = null;
+    let latestCreatedAt = -Infinity;
+
+    entries.forEach((entry) => {
+      if (!entry || entry.kind !== signal.kind || entry.signature !== signal.signature) {
+        return;
+      }
+
+      const createdAtMs = Date.parse(entry.createdAt || 0);
+      if (!Number.isFinite(createdAtMs)) {
+        return;
+      }
+
+      if (now - createdAtMs >= cooldownMs) {
+        return;
+      }
+
+      if (createdAtMs > latestCreatedAt) {
+        latestCreatedAt = createdAtMs;
+        latestMatch = entry;
+      }
+    });
+
+    return latestMatch;
+  }
+
+  function formatDuration(ms) {
+    const totalSeconds = Math.max(0, Math.ceil(Number(ms) / 1000));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    if (hours > 0) {
+      return `${hours}h ${String(minutes).padStart(2, "0")}m ${String(seconds).padStart(2, "0")}s`;
+    }
+
+    if (minutes > 0) {
+      return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+    }
+
+    return `${seconds}s`;
   }
 
   function makeLogEntry(signal, analysis) {
@@ -231,7 +308,9 @@
     normalizeSettings,
     analyze,
     shouldNotify,
-    makeLogEntry
+    makeLogEntry,
+    getCooldownState,
+    formatDuration
   };
 
   globalScope.StreakBot = api;

@@ -246,6 +246,16 @@ h4 {
   font-weight: 800;
 }
 
+.field-note {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.field-note.live {
+  color: var(--warning);
+}
+
 input,
 select {
   width: 100%;
@@ -825,6 +835,14 @@ select:focus {
   margin-top: 8px;
   color: var(--text);
   font-size: 13px;
+}
+
+.bot-trigger small {
+  display: block;
+  margin-top: 8px;
+  color: var(--warning);
+  font-size: 11px;
+  font-weight: 900;
 }
 
 .bot-alert-table {
